@@ -1,15 +1,15 @@
-import './globals.css';
 import '../styles/globals.css';
+import type { Metadata } from 'next';
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'מתכנן טיולים',
-  description: 'Trip planner admin'
+  description: 'מערכת ניהול טיולים עם Supabase',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="he" dir="rtl">
-      <body className="bg-rose-50 text-neutral-900">{children}</body>
+      <body>{children}</body>
     </html>
   );
 }

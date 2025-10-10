@@ -2,8 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* מחלקות עזר זריזות */
-.input { @apply w-full rounded-xl border border-gray-300/60 bg-white/70 px-3 py-2 text-right; }
-.btn   { @apply rounded-xl bg-pink-600 px-3 py-2 text-white hover:opacity-90; }
-.card  { @apply rounded-2xl border border-gray-200/60 bg-white/70 p-4 shadow-sm; }
-.link  { @apply text-pink-700 underline; }
+body {
+  background-color: #fef7f7;
+  color: #111;
+  font-family: sans-serif;
+}
