@@ -1,96 +1,53 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { fetchDays, fetchEntriesForDay } from '@/lib/supabaseRest';
+import { toISOfromDDMMYYYY, createDay, fetchDays, fetchEntriesForDay } from '@/lib/supabaseRest';
+
+// אם יש לכם trip_id דינמי – קח אותו מה-URL/בחירה. בינתיים נשתמש בערך ידוע:
+const TRIP_ID = '8a3071a7-da9b-4d2b-8f27-2ef564053622'; // החלף ל-trip_id שלך
 
 export default function AdminDaysPage() {
+  const [from, setFrom] = useState('');        // dd/mm/yyyy מהאינפוט
+  const [title, setTitle] = useState('');      // אם יש שדה שם/כותרת
   const [days, setDays] = useState<any[]>([]);
   const [selectedDayId, setSelectedDayId] = useState<string>('');
   const [entries, setEntries] = useState<any[]>([]);
-  const [loadingDays, setLoadingDays] = useState(true);
-  const [loadingEntries, setLoadingEntries] = useState(false);
 
   useEffect(() => {
     (async () => {
-      setLoadingDays(true);
-      try {
-        const d = await fetchDays();
-        setDays(d);
-        if (d?.length) setSelectedDayId(d[0].id);
-      } finally {
-        setLoadingDays(false);
-      }
+      const d = await fetchDays(TRIP_ID);
+      setDays(d);
+      if (d?.length) setSelectedDayId(d[0].id);
     })();
   }, []);
 
   useEffect(() => {
     (async () => {
       if (!selectedDayId) { setEntries([]); return; }
-      setLoadingEntries(true);
-      try {
-        const rows = await fetchEntriesForDay(selectedDayId);
-        setEntries(rows);
-      } finally {
-        setLoadingEntries(false);
-      }
+      const rows = await fetchEntriesForDay(selectedDayId);
+      setEntries(rows);
     })();
   }, [selectedDayId]);
 
+  async function onAddDay() {
+    try {
+      const dateISO = toISOfromDDMMYYYY(from);      // המרה מ-dd/mm/yyyy ל-YYYY-MM-DD
+      await createDay({ trip_id: TRIP_ID, dateISO });
+      const d = await fetchDays(TRIP_ID);           // רענון רשימת ימים
+      setDays(d);
+      if (!selectedDayId && d?.length) setSelectedDayId(d[0].id);
+      setFrom(''); setTitle('');
+      alert('יום נשמר בהצלחה');
+    } catch (e:any) {
+      alert('שמירה נכשלה: ' + (e?.message || 'unknown error'));
+    }
+  }
+
   return (
-    <div style={{ display:'grid', gap:16 }}>
-      <h2>ניהול ימים ופריטים</h2>
+    <div style={{ padding: 16, direction: 'rtl' }}>
+      <h1>פאנל ניהול טיולים</h1>
 
-      <div>
-        <label>בחר יום: </label>
-        {loadingDays ? (
-          <span>טוען ימים…</span>
-        ) : (
-          <select value={selectedDayId} onChange={(e) => setSelectedDayId(e.target.value)}>
-            <option value="">— בחר יום —</option>
-            {days.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.date} {d.title ? `— ${d.title}` : ''}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-
-      <div>
-        <h3>פריטים ביום</h3>
-        {loadingEntries ? (
-          <p>טוען פריטים…</p>
-        ) : entries.length === 0 ? (
-          <p>אין פריטים ליום שנבחר</p>
-        ) : (
-          <table style={{ width:'100%', borderCollapse:'collapse' }}>
-            <thead>
-              <tr>
-                <th align="left">#</th>
-                <th align="left">מיקום</th>
-                <th align="left">סוג</th>
-                <th align="left">שם</th>
-                <th align="left">משך (דק׳)</th>
-                <th align="left">קבוצה</th>
-                <th align="left">הערה</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((it:any, idx:number) => (
-                <tr key={it.id} style={{ borderTop:'1px solid #eee' }}>
-                  <td>{idx+1}</td>
-                  <td>{it.position ?? ''}</td>
-                  <td>{it.type}</td>
-                  <td>{it.name}</td>
-                  <td>{it.duration_minutes ?? ''}</td>
-                  <td>{it.group ?? ''}</td>
-                  <td>{it.note ?? ''}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
-}
+      <h3>צור יום חדש</h3>
+      <div style={{ display:'grid', gridTemplateColumns:'220px 220px 160px', gap: 8, alignItems:'center' }}>
+        <input
+          place
