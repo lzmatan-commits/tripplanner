@@ -1,53 +1,47 @@
-'use client';
+'use client'
+import { useState, useEffect } from 'react'
+import { toISOfromDDMMYYYY, createDay, fetchDays } from '@/lib/supabaseRest'
 
-import { useEffect, useState } from 'react';
-import { toISOfromDDMMYYYY, createDay, fetchDays, fetchEntriesForDay } from '@/lib/supabaseRest';
+const TRIP_ID = '<<ה-trip_id שלך>>' // החלף לערך הנכון
 
-// אם יש לכם trip_id דינמי – קח אותו מה-URL/בחירה. בינתיים נשתמש בערך ידוע:
-const TRIP_ID = '8a3071a7-da9b-4d2b-8f27-2ef564053622'; // החלף ל-trip_id שלך
-
-export default function AdminDaysPage() {
-  const [from, setFrom] = useState('');        // dd/mm/yyyy מהאינפוט
-  const [title, setTitle] = useState('');      // אם יש שדה שם/כותרת
-  const [days, setDays] = useState<any[]>([]);
-  const [selectedDayId, setSelectedDayId] = useState<string>('');
-  const [entries, setEntries] = useState<any[]>([]);
+export default function AddDayBlock() {
+  const [uiDate, setUiDate] = useState('')   // dd/mm/yyyy
+  const [days, setDays] = useState<any[]>([])
 
   useEffect(() => {
-    (async () => {
-      const d = await fetchDays(TRIP_ID);
-      setDays(d);
-      if (d?.length) setSelectedDayId(d[0].id);
-    })();
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      if (!selectedDayId) { setEntries([]); return; }
-      const rows = await fetchEntriesForDay(selectedDayId);
-      setEntries(rows);
-    })();
-  }, [selectedDayId]);
+    (async () => setDays(await fetchDays(TRIP_ID)))()
+  }, [])
 
   async function onAddDay() {
     try {
-      const dateISO = toISOfromDDMMYYYY(from);      // המרה מ-dd/mm/yyyy ל-YYYY-MM-DD
-      await createDay({ trip_id: TRIP_ID, dateISO });
-      const d = await fetchDays(TRIP_ID);           // רענון רשימת ימים
-      setDays(d);
-      if (!selectedDayId && d?.length) setSelectedDayId(d[0].id);
-      setFrom(''); setTitle('');
-      alert('יום נשמר בהצלחה');
-    } catch (e:any) {
-      alert('שמירה נכשלה: ' + (e?.message || 'unknown error'));
+      // אם אתה משתמש בקלט type=date – תוכל לשלוח ישירות את value (שהוא yyyy-mm-dd)
+      // כאן אני תומך גם ב-dd/mm/yyyy:
+      const dateISO = uiDate.includes('-') ? uiDate : toISOfromDDMMYYYY(uiDate)
+      await createDay({ trip_id: TRIP_ID, dateISO })
+      setDays(await fetchDays(TRIP_ID))
+      setUiDate('')
+      // אופציונלי: הודעת הצלחה UI ולא alert
+    } catch (e: any) {
+      alert('שמירה נכשלה: ' + (e?.message || 'שגיאה'))
     }
   }
 
   return (
-    <div style={{ padding: 16, direction: 'rtl' }}>
-      <h1>פאנל ניהול טיולים</h1>
+    <div style={{display:'grid', gap:8}}>
+      {/* עדיף type="date" בנייד */}
+      <input
+        type="date"
+        placeholder="YYYY-MM-DD"
+        value={uiDate}
+        onChange={(e) => setUiDate(e.target.value)}
+      />
+      {/* אם אתה חייב פורמט dd/mm/yyyy—החלף את type="date" ל-text והשתמש ב-toISOfromDDMMYYYY */}
+      <button type="button" onClick={onAddDay}>הוסף יום</button>
 
-      <h3>צור יום חדש</h3>
-      <div style={{ display:'grid', gridTemplateColumns:'220px 220px 160px', gap: 8, alignItems:'center' }}>
-        <input
-          place
+      {/* הדפסה קצרה לבדיקה */}
+      <ul>
+        {days.map((d:any) => <li key={d.id}>{d.date}</li>)}
+      </ul>
+    </div>
+  )
+}
