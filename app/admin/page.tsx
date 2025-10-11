@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
-/** ========= Types ========= */
+/* ========= Types ========= */
 type Trip = {
   id: string;
   name: string;
@@ -14,8 +14,8 @@ type Trip = {
 type Day = {
   id: string;
   trip_id: string;
-  date: string;   // YYYY-MM-DD
-  order: number | null; // אם יש לך עמודה כזו ב-days
+  date: string;              // YYYY-MM-DD
+  order: number | null;      // אם קיימת עמודה כזו אצלך
 };
 
 type DetailType = 'HOTEL' | 'TRANSPORT' | 'ATTRACTION' | 'FOOD' | 'OTHER';
@@ -26,46 +26,46 @@ type Entry = {
   type: DetailType;
   name: string;
   note: string | null;
-  position: number | null;        // מיקום ביום
+  position: number | null;        // מיקום בתוך היום (במקום order)
   duration_minutes: number | null;
   created_at?: string;
 };
 
 const DETAIL_TYPES: DetailType[] = ['HOTEL','TRANSPORT','ATTRACTION','FOOD','OTHER'];
 
-/** תאריכים בין שני ISO (כולל קצוות) */
+/* ========= Helpers ========= */
 function datesBetweenISO(startISO: string, endISO: string): string[] {
-  const res: string[] = [];
+  const out: string[] = [];
   const s = new Date(startISO); s.setHours(0,0,0,0);
   const e = new Date(endISO);  e.setHours(0,0,0,0);
   for (let d = new Date(s); d.getTime() <= e.getTime(); d.setDate(d.getDate() + 1)) {
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
-    res.push(`${yyyy}-${mm}-${dd}`);
+    out.push(`${yyyy}-${mm}-${dd}`);
   }
-  return res;
+  return out;
 }
 
 export default function AdminPage() {
-  /** ======= Trips ======= */
+  /* ===== Trips ===== */
   const [trips, setTrips] = useState<Trip[]>([]);
   const [newTrip, setNewTrip] = useState<Partial<Trip>>({});
   const [activeTripId, setActiveTripId] = useState<string | null>(null);
 
-  /** ======= Days & Entries ======= */
+  /* ===== Days & Entries ===== */
   const [days, setDays] = useState<Day[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [newDayDate, setNewDayDate] = useState<string>(''); // להוספת יום בודד
+  const [newDayDate, setNewDayDate] = useState<string>(''); // להוספת יום יחיד
 
-  /** טופס "הוסף פריט" לכל יום */
+  /* טופס "הוסף פעילות" לכל יום */
   const [draftByDay, setDraftByDay] = useState<Record<string, Partial<Entry>>>({});
 
   function setDraft(dayId: string, patch: Partial<Entry>) {
-    setDraftByDay((prev) => ({ ...prev, [dayId]: { ...prev[dayId], ...patch } }));
+    setDraftByDay(prev => ({ ...prev, [dayId]: { ...prev[dayId], ...patch } }));
   }
 
-  /** ======= Loaders ======= */
+  /* ===== Loaders ===== */
   async function loadTrips() {
     const { data, error } = await supabase
       .from('trips')
@@ -81,12 +81,11 @@ export default function AdminPage() {
       .select('*')
       .eq('trip_id', tripId)
       .order('date', { ascending: true });
-
     if (e1) { alert(e1.message); return; }
 
     const dayIds = (d || []).map(x => x.id);
     let e: Entry[] = [];
-    if (dayIds.length > 0) {
+    if (dayIds.length) {
       const { data: eData, error: e2 } = await supabase
         .from('day_entries')
         .select('*')
@@ -103,76 +102,92 @@ export default function AdminPage() {
   useEffect(() => { loadTrips(); }, []);
   useEffect(() => { if (activeTripId) loadTripDetails(activeTripId); }, [activeTripId]);
 
-  /** ======= Create Trip + expand days ======= */
+  /* ===== Create Trip (+ expand days) ===== */
   async function createTrip() {
-    if (!newTrip.name) return alert('שם טיול חובה');
-    if (!newTrip.start_date || !newTrip.end_date) return alert('יש לבחור טווח תאריכים');
+    try {
+      if (!newTrip.name) return alert('שם טיול חובה');
+      if (!newTrip.start_date || !newTrip.end_date) return alert('בחר/י טווח תאריכים');
 
-    const { data: trip, error } = await supabase
-      .from('trips')
-      .insert({
-        name: newTrip.name,
-        start_date: newTrip.start_date,
-        end_date: newTrip.end_date
-      })
-      .select('id,start_date,end_date')
-      .single();
-    if (error) return alert(error.message);
-    const tripId = trip!.id;
+      const { data: trip, error } = await supabase
+        .from('trips')
+        .insert({
+          name: newTrip.name,
+          start_date: newTrip.start_date,
+          end_date: newTrip.end_date
+        })
+        .select('id,start_date,end_date')
+        .single();
+      if (error) throw error;
 
-    const list = datesBetweenISO(trip!.start_date!, trip!.end_date!)
-      .map((dateISO, idx) => ({ trip_id: tripId, date: dateISO, order: idx + 1 }));
+      const tripId = trip!.id;
+      const list = datesBetweenISO(trip!.start_date!, trip!.end_date!)
+        .map((dateISO, idx) => ({ trip_id: tripId, date: dateISO, order: idx + 1 }));
 
-    if (list.length) {
-      const { error: e2 } = await supabase.from('days').insert(list);
-      if (e2) return alert('שגיאה בהכנסת הימים: ' + e2.message);
+      if (list.length) {
+        const { error: e2, status } = await supabase.from('days').insert(list);
+        if (e2) throw new Error(`שגיאה בהוספת ימים (${status}): ${e2.message}`);
+      }
+
+      setNewTrip({});
+      setActiveTripId(tripId);
+      await loadTrips();
+      await loadTripDetails(tripId);
+    } catch (err: any) {
+      alert(err?.message || 'שגיאה ביצירת הטיול');
     }
-
-    setNewTrip({});
-    setActiveTripId(tripId);
-    await loadTrips();
-    await loadTripDetails(tripId);
   }
 
-  /** ======= Add single day (optional) ======= */
+  /* ===== Add single day ===== */
   async function addDay() {
-    if (!activeTripId) return;
-    if (!newDayDate) return alert('בחר תאריך');
-    const { error } = await supabase
-      .from('days')
-      .insert({ trip_id: activeTripId, date: newDayDate, order: (days.length + 1) });
-    if (error) return alert(error.message);
-    setNewDayDate('');
-    await loadTripDetails(activeTripId);
+    try {
+      if (!activeTripId) return alert('בחר/י טיול פעיל');
+      if (!newDayDate)   return alert('בחר/י תאריך (YYYY-MM-DD)');
+
+      const { error, status } = await supabase
+        .from('days')
+        .insert({ trip_id: activeTripId, date: newDayDate, order: (days.length + 1) })
+        .select('id')
+        .single();
+      if (error) throw new Error(`שמירת יום נכשלה (${status}): ${error.message}`);
+
+      setNewDayDate('');
+      await loadTripDetails(activeTripId);
+    } catch (err: any) {
+      alert(err?.message || 'שגיאה בהוספת יום');
+    }
   }
 
-  /** ======= Entries CRUD ======= */
+  /* ===== Entries CRUD ===== */
   async function addEntry(dayId: string) {
-    if (!activeTripId) return;
-    const d = draftByDay[dayId] || {};
-    const name = (d.name || '').trim();
-    const type = (d.type as DetailType) || 'ATTRACTION';
-    const duration = d.duration_minutes ?? 60;
-    const note = d.note ?? '';
+    try {
+      if (!activeTripId) return;
+      const d = draftByDay[dayId] || {};
+      const name = (d.name || '').trim();
+      const type = (d.type as DetailType) || 'ATTRACTION';
+      const duration = d.duration_minutes ?? 60;
+      const note = d.note ?? '';
 
-    if (!name) return alert('שם הפריט חובה');
+      if (!name) return alert('שם הפעילות חובה');
 
-    const nextPos = entries.filter(e => e.day_id === dayId).length + 1;
+      const nextPos = entries.filter(e => e.day_id === dayId).length + 1;
 
-    const { error } = await supabase
-      .from('day_entries')
-      .insert({
-        day_id: dayId,
-        type,
-        name,
-        note,
-        position: nextPos,
-        duration_minutes: duration
-      });
-    if (error) return alert(error.message);
+      const { error, status } = await supabase
+        .from('day_entries')
+        .insert({
+          day_id: dayId,
+          type,
+          name,
+          note,
+          position: nextPos,
+          duration_minutes: duration
+        });
+      if (error) throw new Error(`שמירת פעילות נכשלה (${status}): ${error.message}`);
 
-    setDraft(dayId, { name: '', note: '', duration_minutes: 60 });
-    await loadTripDetails(activeTripId);
+      setDraft(dayId, { name: '', note: '', duration_minutes: 60 });
+      await loadTripDetails(activeTripId);
+    } catch (err: any) {
+      alert(err?.message || 'שגיאה בהוספת פעילות');
+    }
   }
 
   async function saveEntry(e: Entry) {
@@ -189,7 +204,7 @@ export default function AdminPage() {
   }
 
   async function deleteEntry(id: string) {
-    if (!confirm('למחוק פריט זה?')) return;
+    if (!confirm('למחוק פעילות זו?')) return;
     const { error } = await supabase.from('day_entries').delete().eq('id', id);
     if (error) return alert(error.message);
     if (activeTripId) await loadTripDetails(activeTripId);
@@ -220,14 +235,12 @@ export default function AdminPage() {
     if (activeTripId) await loadTripDetails(activeTripId);
   }
 
-  /** קבוצת פריטים לפי יום (לנוחות הרינדור) */
+  /* ===== Group entries by day for rendering ===== */
   const entriesByDay = useMemo(() => {
     const map: Record<string, Entry[]> = {};
-    for (const e of entries) {
-      (map[e.day_id] ||= []).push(e);
-    }
+    for (const e of entries) (map[e.day_id] ||= []).push(e);
     for (const k of Object.keys(map)) {
-      map[k].sort((a,b) => (a.position ?? 0) - (b.position ?? 0));
+      map[k].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
     }
     return map;
   }, [entries]);
@@ -236,7 +249,7 @@ export default function AdminPage() {
     <main className="max-w-6xl mx-auto p-6 space-y-8" dir="rtl">
       <h1 className="text-3xl font-bold">פאנל ניהול טיולים</h1>
 
-      {/* יצירת טיול + בחירת טיול פעיל */}
+      {/* יצירת טיול חדש + בחירת טיול פעיל */}
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">צור טיול חדש</h2>
         <div className="grid grid-cols-4 gap-3">
@@ -260,7 +273,7 @@ export default function AdminPage() {
         </div>
       </section>
 
-      {/* אזור הימים והפעילויות */}
+      {/* הימים והפעילויות */}
       {activeTripId && (
         <section className="space-y-6">
           {/* הוספת יום יחיד */}
@@ -280,7 +293,7 @@ export default function AdminPage() {
               {/* טופס הוספת פעילות ליום */}
               <div className="flex flex-wrap gap-2 items-end">
                 <select
-                  className="input w-36"
+                  className="input w-40"
                   value={(draftByDay[day.id]?.type as DetailType) || 'ATTRACTION'}
                   onChange={(ev) => setDraft(day.id, { type: ev.target.value as DetailType })}
                 >
@@ -326,7 +339,7 @@ export default function AdminPage() {
                       <td>{i + 1}</td>
                       <td>{e.position ?? ''}</td>
                       <td>
-                        <select className="input w-36" value={e.type}
+                        <select className="input w-40" value={e.type}
                                 onChange={(ev) => (e.type = ev.target.value as DetailType)}>
                           {DETAIL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
