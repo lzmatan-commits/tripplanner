@@ -159,4 +159,3 @@ export async function deleteEntry(id: string): Promise<boolean> {
   if (!r.ok) throw new Error(await r.text());
   return true;
 }
-ען
