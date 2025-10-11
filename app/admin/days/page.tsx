@@ -2,23 +2,25 @@
 import { useState, useEffect } from 'react'
 import { toISOfromDDMMYYYY, createDay, fetchDays } from '@/lib/supabaseRest'
 
-const TRIP_ID = '<<ה-trip_id שלך>>' // החלף לערך הנכון
-
 export default function AddDayBlock() {
+  // הזן כאן את trip_id של הטיול או הדבק אותו מהפאנל הראשי
+  const [tripId, setTripId] = useState('')
   const [uiDate, setUiDate] = useState('')   // dd/mm/yyyy
   const [days, setDays] = useState<any[]>([])
 
   useEffect(() => {
-    (async () => setDays(await fetchDays(TRIP_ID)))()
-  }, [])
+    if (!tripId) { setDays([]); return; }
+    (async () => setDays(await fetchDays(tripId)))()
+  }, [tripId])
 
   async function onAddDay() {
     try {
       // אם אתה משתמש בקלט type=date – תוכל לשלוח ישירות את value (שהוא yyyy-mm-dd)
       // כאן אני תומך גם ב-dd/mm/yyyy:
-      const dateISO = uiDate.includes('-') ? uiDate : toISOfromDDMMYYYY(uiDate)
-      await createDay({ trip_id: TRIP_ID, dateISO })
-      setDays(await fetchDays(TRIP_ID))
+  if (!tripId) throw new Error('חסר trip_id — הכנס/י את מזהה הטיול לפני ההוספה')
+  const dateISO = uiDate.includes('-') ? uiDate : toISOfromDDMMYYYY(uiDate)
+  await createDay({ trip_id: tripId, dateISO })
+  setDays(await fetchDays(tripId))
       setUiDate('')
       // אופציונלי: הודעת הצלחה UI ולא alert
     } catch (e: any) {
@@ -29,6 +31,13 @@ export default function AddDayBlock() {
   return (
     <div style={{display:'grid', gap:8}}>
       {/* עדיף type="date" בנייד */}
+      <input
+        type="text"
+        placeholder="trip id (paste here)"
+        value={tripId}
+        onChange={(e) => setTripId(e.target.value)}
+      />
+
       <input
         type="date"
         placeholder="YYYY-MM-DD"

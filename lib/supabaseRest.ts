@@ -58,13 +58,13 @@ export function toISOfromDDMMYYYY(s: string): string {
 /** שליפת ימים (אופציונלית: לפי tripId) */
 export async function fetchDays(tripId?: string): Promise<DayRow[]> {
   const qp = new URLSearchParams({ select: '*' });
-  // אם קיימת אצלך עמודת order ב-days, אפשר להוסיף: &order=order.asc
   // ממיינים לפי date כברירת מחדל ליציבות
   qp.append('order', 'date.asc');
 
   if (tripId) qp.append('trip_id', `eq.${tripId}`);
 
-  const url = `${PROJECT_URL}/rest/v1/days?${qp.toString()}`;
+  // משתמשים בטבלת 'trip_days' לפי הסכימה במאגר
+  const url = `${PROJECT_URL}/rest/v1/trip_days?${qp.toString()}`;
   const r = await fetch(url, { headers: baseHeaders, cache: 'no-store' });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
@@ -74,17 +74,16 @@ export async function fetchDays(tripId?: string): Promise<DayRow[]> {
 export async function createDay(params: {
   dateISO: string;         // YYYY-MM-DD
   trip_id?: string;        // אם הסכמה שלך כוללת trip_id
-  order?: number;          // אם יש לך עמודה כזו
   title?: string | null;
   note?: string | null;
 }): Promise<DayRow[]> {
   const body: any = { date: params.dateISO };
   if (params.trip_id) body.trip_id = params.trip_id;
-  if (typeof params.order === 'number') body.order = params.order;
   if (params.title !== undefined) body.title = params.title;
   if (params.note !== undefined) body.note = params.note;
 
-  const r = await fetch(`${PROJECT_URL}/rest/v1/days`, {
+  // מפרסם ל-'trip_days' לפי הסכמה
+  const r = await fetch(`${PROJECT_URL}/rest/v1/trip_days`, {
     method: 'POST',
     headers: { ...baseHeaders, 'Content-Type': 'application/json', Prefer: 'return=representation' },
     body: JSON.stringify(body),
