@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import DrivePickerButton from '@/app/components/DrivePickerButton';
 
@@ -105,6 +106,7 @@ export default function AdminPage() {
   const [days, setDays] = useState<TripDay[]>([]);
   const [entriesByDay, setEntriesByDay] = useState<Record<string, Entry[]>>({});
   const [activeTripId, setActiveTripId] = useState('');
+  const params = useParams();
   const [newTrip, setNewTrip] = useState({ title: '', start_date: '', end_date: '' });
   const [formCity, setFormCity] = useState({ name: '', country: 'Japan', tz: 'Asia/Tokyo' });
   const [err, setErr] = useState<string | null>(null);
@@ -112,8 +114,11 @@ export default function AdminPage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    // If this page is visited at /trip/<id>, pick the id from the route and use it
+    const p = (params as any) || {};
+    if (p.id) setActiveTripId(p.id);
     void loadAll();
-  }, []);
+  }, [params]);
 
   async function loadAll() {
     const [cRes, pRes, tRes] = await Promise.all([

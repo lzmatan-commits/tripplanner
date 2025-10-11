@@ -26,7 +26,7 @@ type Entry = {
   type: DetailType;
   name: string;
   note: string | null;
-  position: number | null;        // מיקום בתוך היום (במקום order)
+  order_idx: number | null;        // מיקום בתוך היום (במקום order)
   duration_minutes: number | null;
   created_at?: string;
 };
@@ -77,7 +77,7 @@ export default function AdminPage() {
 
   async function loadTripDetails(tripId: string) {
     const { data: d, error: e1 } = await supabase
-      .from('days')
+      .from('trip_days')
       .select('*')
       .eq('trip_id', tripId)
       .order('date', { ascending: true });
@@ -90,7 +90,7 @@ export default function AdminPage() {
         .from('day_entries')
         .select('*')
         .in('day_id', dayIds)
-        .order('position', { ascending: true });
+        .order('order_idx', { ascending: true });
       if (e2) { alert(e2.message); return; }
       e = (eData || []) as Entry[];
     }
@@ -121,10 +121,10 @@ export default function AdminPage() {
 
       const tripId = trip!.id;
       const list = datesBetweenISO(trip!.start_date!, trip!.end_date!)
-        .map((dateISO, idx) => ({ trip_id: tripId, date: dateISO, order: idx + 1 }));
+        .map((dateISO, idx) => ({ trip_id: tripId, date: dateISO, order_idx: idx + 1 }));
 
       if (list.length) {
-        const { error: e2, status } = await supabase.from('days').insert(list);
+  const { error: e2, status } = await supabase.from('trip_days').insert(list);
         if (e2) throw new Error(`שגיאה בהוספת ימים (${status}): ${e2.message}`);
       }
 
@@ -144,8 +144,8 @@ export default function AdminPage() {
       if (!newDayDate)   return alert('בחר/י תאריך (YYYY-MM-DD)');
 
       const { error, status } = await supabase
-        .from('days')
-        .insert({ trip_id: activeTripId, date: newDayDate, order: (days.length + 1) })
+        .from('trip_days')
+        .insert({ trip_id: activeTripId, date: newDayDate, order_idx: (days.length + 1) })
         .select('id')
         .single();
       if (error) throw new Error(`שמירת יום נכשלה (${status}): ${error.message}`);
@@ -178,7 +178,7 @@ export default function AdminPage() {
           type,
           name,
           note,
-          position: nextPos,
+          order_idx: nextPos,
           duration_minutes: duration
         });
       if (error) throw new Error(`שמירת פעילות נכשלה (${status}): ${error.message}`);
@@ -215,20 +215,20 @@ export default function AdminPage() {
     if (!entry) return;
     const sameDay = entries
       .filter(e => e.day_id === entry.day_id)
-      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+      .sort((a, b) => (a.order_idx ?? 0) - (b.order_idx ?? 0));
     const idx = sameDay.findIndex(e => e.id === id);
     const swap = sameDay[idx + delta];
     if (!swap) return;
 
     const { error: e1 } = await supabase
       .from('day_entries')
-      .update({ position: swap.position })
+      .update({ order_idx: swap.order_idx })
       .eq('id', entry.id);
     if (e1) return alert(e1.message);
 
     const { error: e2 } = await supabase
       .from('day_entries')
-      .update({ position: entry.position })
+      .update({ order_idx: entry.order_idx })
       .eq('id', swap.id);
     if (e2) return alert(e2.message);
 
@@ -240,7 +240,7 @@ export default function AdminPage() {
     const map: Record<string, Entry[]> = {};
     for (const e of entries) (map[e.day_id] ||= []).push(e);
     for (const k of Object.keys(map)) {
-      map[k].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+      map[k].sort((a, b) => (a.order_idx ?? 0) - (b.order_idx ?? 0));
     }
     return map;
   }, [entries]);
@@ -337,7 +337,7 @@ export default function AdminPage() {
                   {(entriesByDay[day.id] || []).map((e, i) => (
                     <tr key={e.id} className="border-t">
                       <td>{i + 1}</td>
-                      <td>{e.position ?? ''}</td>
+                      <td>{e.order_idx ?? ''}</td>
                       <td>
                         <select className="input w-40" value={e.type}
                                 onChange={(ev) => (e.type = ev.target.value as DetailType)}>
